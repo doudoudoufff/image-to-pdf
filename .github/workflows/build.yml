@@ -54,7 +54,7 @@ jobs:
         run: |
           arch -x86_64 /bin/bash -c "
             # 安装构建工具
-            brew install python-tk@3.11
+            brew install python-tk@3.11 || true
             pip install wheel setuptools
             
             # 克隆 PyInstaller 源码
@@ -62,7 +62,11 @@ jobs:
             cd pyinstaller/bootloader
             
             # 构建 bootloader
-            python ./waf distclean all --target-arch=x86_64
+            python ./waf configure --target-arch=64bit --no-universal2 &&
+            python ./waf build
+            
+            # 安装构建好的 bootloader
+            python ./waf install
           "
           
       - name: Build app
