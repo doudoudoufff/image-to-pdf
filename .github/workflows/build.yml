@@ -18,10 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Rosetta 2
-        run: |
-          /usr/sbin/softwareupdate --install-rosetta --agree-to-license
-          
       - name: Check macOS version and architecture
         run: |
           sw_vers
@@ -37,16 +33,12 @@ jobs:
           architecture: 'x64'
       
       - name: Install dependencies
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            arch -x86_64 /bin/bash -c "
-              python -m pip install --upgrade pip
-              pip install --no-cache-dir -r requirements.txt
-              pip list
-            "
+        run: |
+          arch -x86_64 /bin/bash -c "
+            python -m pip install --upgrade pip
+            pip install --no-cache-dir -r requirements.txt
+            pip list
+          "
           
       - name: Check system info
         run: |
@@ -62,29 +54,25 @@ jobs:
         run: |
           cd "$(python -c 'import PyInstaller; print(PyInstaller.__path__[0])')/bootloader"
           arch -x86_64 /bin/bash -c "
-            python3 ./waf configure --target-arch=x86_64 &&
-            python3 ./waf build
+            python ./waf configure --target-arch=x86_64 &&
+            python ./waf build
           "
           
       - name: Build app
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          command: |
-            arch -x86_64 /bin/bash -c "
-              echo 'Starting PyInstaller build...'
-              python -m PyInstaller \
-                --clean \
-                --noconfirm \
-                --target-arch x86_64 \
-                --name ImageToPDF \
-                --windowed \
-                --distpath ./dist \
-                --workpath ./build \
-                --osx-bundle-identifier 'com.doudoudoufff.imagetopdf' \
-                main.py
-            "
+        run: |
+          arch -x86_64 /bin/bash -c "
+            echo 'Starting PyInstaller build...'
+            python -m PyInstaller \
+              --clean \
+              --noconfirm \
+              --target-arch x86_64 \
+              --name ImageToPDF \
+              --windowed \
+              --distpath ./dist \
+              --workpath ./build \
+              --osx-bundle-identifier 'com.doudoudoufff.imagetopdf' \
+              main.py
+          "
           
       - name: Check build output
         run: |
