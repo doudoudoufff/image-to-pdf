@@ -52,10 +52,17 @@ jobs:
 
       - name: Build x86_64 PyInstaller bootloader
         run: |
-          cd "$(python -c 'import PyInstaller; print(PyInstaller.__path__[0])')/bootloader"
           arch -x86_64 /bin/bash -c "
-            python ./waf configure --target-arch=x86_64 &&
-            python ./waf build
+            # 安装构建工具
+            brew install python-tk@3.11
+            pip install wheel setuptools
+            
+            # 克隆 PyInstaller 源码
+            git clone https://github.com/pyinstaller/pyinstaller.git
+            cd pyinstaller/bootloader
+            
+            # 构建 bootloader
+            python ./waf distclean all --target-arch=x86_64
           "
           
       - name: Build app
