@@ -13,6 +13,7 @@ jobs:
     env:
       ARCHFLAGS: "-arch x86_64"
       SYSTEM_VERSION_COMPAT: "1"
+      MACOSX_DEPLOYMENT_TARGET: "10.13"
     steps:
       - uses: actions/checkout@v4
       
@@ -35,6 +36,7 @@ jobs:
           uname -a
           echo "Current directory: $PWD"
           ls -la
+          echo "MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET"
           
       - name: Verify PIL architecture
         run: |
@@ -53,6 +55,7 @@ jobs:
             --distpath ./dist \
             --workpath ./build \
             --debug all \
+            --osx-bundle-identifier "com.doudoudoufff.imagetopdf" \
             main.py
           
       - name: Check build output
@@ -66,6 +69,8 @@ jobs:
           cd dist
           ls -la
           if [ -d "ImageToPDF.app" ]; then
+            # 设置应用程序的最低系统要求
+            /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 10.13" ImageToPDF.app/Contents/Info.plist
             zip -r ImageToPDF-Intel-Mac.zip ImageToPDF.app
             echo "Zip file created successfully"
           else
