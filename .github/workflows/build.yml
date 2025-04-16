@@ -1,5 +1,9 @@
 name: Build Intel Mac App
 
+# 添加权限配置
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
