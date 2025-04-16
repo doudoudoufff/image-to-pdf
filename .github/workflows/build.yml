@@ -29,54 +29,42 @@ jobs:
           arch -x86_64 /bin/bash -c "
             python -m pip install --upgrade pip
             pip install --no-cache-dir -r requirements.txt
-            pip install 'PyInstaller==6.5.0'
+            pip install py2app
           "
 
-      - name: Replace bootloader with x86_64-only version
+      - name: Create setup.py
         run: |
-          arch -x86_64 /bin/bash -c "
-            # 下载并解压 x86_64 bootloader
-            curl -L -o bootloader.tar.gz https://github.com/pyinstaller/pyinstaller/releases/download/v6.5.0/pyinstaller-bootloader-darwin-x86_64.tar.gz
-            tar -xzvf bootloader.tar.gz
-            
-            # 获取 PyInstaller bootloader 目录
-            BOOTLOADER_DIR=\$(python -c 'import PyInstaller; print(PyInstaller.__path__[0])')/bootloader/Darwin-64bit
-            
-            # 备份原始 bootloader
-            mv \"\$BOOTLOADER_DIR\" \"\${BOOTLOADER_DIR}.bak\" || true
-            mkdir -p \"\$BOOTLOADER_DIR\"
-            
-            # 复制新的 bootloader
-            cp darwin-x86_64/* \"\$BOOTLOADER_DIR/\"
-            
-            # 检查替换结果
-            ls -la \"\$BOOTLOADER_DIR\"
-            file \"\$BOOTLOADER_DIR/runw\"
-          "
-          
-      - name: Check system info
-        run: |
-          arch -x86_64 /bin/bash -c "
-            python --version
-            echo 'Current directory: $PWD'
-            ls -la
-            echo 'MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET'
-            pip list
-          "
+          cat > setup.py << 'EOL'
+          from setuptools import setup
+
+          setup(
+              app=['main.py'],
+              name='ImageToPDF',
+              setup_requires=['py2app'],
+              options={
+                  'py2app': {
+                      'argv_emulation': False,
+                      'packages': ['PIL', 'reportlab'],
+                      'iconfile': None,
+                      'plist': {
+                          'CFBundleName': 'ImageToPDF',
+                          'CFBundleDisplayName': 'ImageToPDF',
+                          'CFBundleIdentifier': 'com.doudoudoufff.imagetopdf',
+                          'CFBundleVersion': '1.0.0',
+                          'CFBundleShortVersionString': '1.0.0',
+                          'LSMinimumSystemVersion': '13.0',
+                          'NSHighResolutionCapable': True,
+                      }
+                  }
+              }
+          )
+          EOL
           
       - name: Build app
         run: |
           arch -x86_64 /bin/bash -c "
-            echo 'Starting PyInstaller build...'
-            python -m PyInstaller \
-              --clean \
-              --noconfirm \
-              --name ImageToPDF \
-              --windowed \
-              --distpath ./dist \
-              --workpath ./build \
-              --osx-bundle-identifier 'com.doudoudoufff.imagetopdf' \
-              main.py
+            echo 'Starting py2app build...'
+            python setup.py py2app --arch x86_64
           "
           
       - name: Check build output
@@ -91,8 +79,6 @@ jobs:
           cd dist
           ls -la
           if [ -d "ImageToPDF.app" ]; then
-            # 设置应用程序的最低系统要求
-            /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 13.0" ImageToPDF.app/Contents/Info.plist
             zip -r ImageToPDF-Intel-Mac.zip ImageToPDF.app
             echo "Zip file created successfully"
           else
