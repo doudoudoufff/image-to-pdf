@@ -66,13 +66,11 @@ jobs:
           command: |
             arch -x86_64 /bin/bash -c "
               echo 'Starting PyInstaller build...'
-              python -m PyInstaller --version
               python -m PyInstaller \
                 --clean \
                 --noconfirm \
                 --name ImageToPDF \
                 --windowed \
-                --target-arch x86_64 \
                 --distpath ./dist \
                 --workpath ./build \
                 --osx-bundle-identifier 'com.doudoudoufff.imagetopdf' \
