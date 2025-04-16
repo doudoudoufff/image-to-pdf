@@ -9,13 +9,24 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-12
+    runs-on: macos-latest
+    timeout-minutes: 30
     env:
       ARCHFLAGS: "-arch x86_64"
       SYSTEM_VERSION_COMPAT: "1"
       MACOSX_DEPLOYMENT_TARGET: "10.13"
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Check macOS version and architecture
+        run: |
+          sw_vers
+          uname -a
+          arch
+          if [ "$(arch)" = "arm64" ]; then
+            echo "Error: This workflow requires Intel architecture"
+            exit 1
+          fi
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,34 +35,40 @@ jobs:
           architecture: 'x64'
       
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --no-cache-dir -r requirements.txt
-          pip list
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            python -m pip install --upgrade pip
+            pip install --no-cache-dir -r requirements.txt
+            pip list
           
       - name: Check system info
         run: |
           python --version
-          arch
-          uname -a
           echo "Current directory: $PWD"
           ls -la
           echo "MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET"
           
       - name: Build app
-        run: |
-          echo "Starting PyInstaller build..."
-          python -m PyInstaller --version
-          python -m PyInstaller \
-            --clean \
-            --noconfirm \
-            --name ImageToPDF \
-            --windowed \
-            --target-arch x86_64 \
-            --distpath ./dist \
-            --workpath ./build \
-            --osx-bundle-identifier "com.doudoudoufff.imagetopdf" \
-            main.py
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            echo "Starting PyInstaller build..."
+            python -m PyInstaller --version
+            python -m PyInstaller \
+              --clean \
+              --noconfirm \
+              --name ImageToPDF \
+              --windowed \
+              --target-arch x86_64 \
+              --distpath ./dist \
+              --workpath ./build \
+              --osx-bundle-identifier "com.doudoudoufff.imagetopdf" \
+              main.py
           
       - name: Check build output
         run: |
