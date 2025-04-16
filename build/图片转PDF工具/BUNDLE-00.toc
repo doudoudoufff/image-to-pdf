@@ -1,1 +1,0 @@
-([('图片转PDF工具', '/Users/a11/Documents/image/dist/图片转PDF工具', 'EXECUTABLE')],)

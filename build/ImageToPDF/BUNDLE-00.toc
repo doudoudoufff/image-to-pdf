@@ -1,1 +1,0 @@
-([('ImageToPDF', '/Users/a11/Documents/image/dist/ImageToPDF', 'EXECUTABLE')],)
