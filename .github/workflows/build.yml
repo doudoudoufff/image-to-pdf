@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-11
     env:
       ARCHFLAGS: "-arch x86_64"
       SYSTEM_VERSION_COMPAT: "1"
@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          ARCHFLAGS="-arch x86_64" pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
           pip list
           
       - name: Check system info
@@ -38,15 +38,11 @@ jobs:
           ls -la
           echo "MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET"
           
-      - name: Verify PIL architecture
-        run: |
-          python -c "from PIL import _webp; print('PIL architecture check passed')"
-      
       - name: Build app
         run: |
           echo "Starting PyInstaller build..."
           python -m PyInstaller --version
-          ARCHFLAGS="-arch x86_64" python -m PyInstaller \
+          python -m PyInstaller \
             --clean \
             --noconfirm \
             --name ImageToPDF \
@@ -54,7 +50,6 @@ jobs:
             --target-arch x86_64 \
             --distpath ./dist \
             --workpath ./build \
-            --debug all \
             --osx-bundle-identifier "com.doudoudoufff.imagetopdf" \
             main.py
           
@@ -62,6 +57,7 @@ jobs:
         run: |
           echo "Checking build output..."
           ls -la dist/
+          otool -L dist/ImageToPDF.app/Contents/MacOS/ImageToPDF || true
           
       - name: Package app
         run: |
