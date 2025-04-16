@@ -14,7 +14,7 @@ jobs:
     env:
       ARCHFLAGS: "-arch x86_64"
       SYSTEM_VERSION_COMPAT: "1"
-      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
     steps:
       - uses: actions/checkout@v4
       
@@ -92,7 +92,7 @@ jobs:
           ls -la
           if [ -d "ImageToPDF.app" ]; then
             # 设置应用程序的最低系统要求
-            /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 10.13" ImageToPDF.app/Contents/Info.plist
+            /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 15.0" ImageToPDF.app/Contents/Info.plist
             zip -r ImageToPDF-Intel-Mac.zip ImageToPDF.app
             echo "Zip file created successfully"
           else
