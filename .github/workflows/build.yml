@@ -61,12 +61,17 @@ jobs:
             git clone https://github.com/pyinstaller/pyinstaller.git
             cd pyinstaller/bootloader
             
-            # 构建 bootloader
-            python ./waf configure --target-arch=64bit --no-universal2 &&
-            python ./waf build
+            # 清理之前的构建
+            python ./waf distclean
             
-            # 安装构建好的 bootloader
-            python ./waf install
+            # 配置构建
+            python ./waf configure --target-arch=64bit --no-universal2
+            
+            # 执行构建
+            python ./waf all
+            
+            # 显示构建结果
+            ls -la build/*/release/*
           "
           
       - name: Build app
