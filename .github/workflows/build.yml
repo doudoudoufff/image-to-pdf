@@ -18,15 +18,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Install Rosetta 2
+        run: |
+          /usr/sbin/softwareupdate --install-rosetta --agree-to-license
+          
       - name: Check macOS version and architecture
         run: |
           sw_vers
           uname -a
           arch
-          if [ "$(arch)" = "arm64" ]; then
-            echo "Error: This workflow requires Intel architecture"
-            exit 1
-          fi
+          echo "Setting up x86_64 shell..."
+          arch -x86_64 /bin/bash -c "arch"
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,16 +42,21 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: |
-            python -m pip install --upgrade pip
-            pip install --no-cache-dir -r requirements.txt
-            pip list
+            arch -x86_64 /bin/bash -c "
+              python -m pip install --upgrade pip
+              pip install --no-cache-dir -r requirements.txt
+              pip list
+            "
           
       - name: Check system info
         run: |
-          python --version
-          echo "Current directory: $PWD"
-          ls -la
-          echo "MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET"
+          arch -x86_64 /bin/bash -c "
+            python --version
+            echo 'Current directory: $PWD'
+            ls -la
+            echo 'MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET'
+            pip list
+          "
           
       - name: Build app
         uses: nick-fields/retry@v3
@@ -57,24 +64,26 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           command: |
-            echo "Starting PyInstaller build..."
-            python -m PyInstaller --version
-            python -m PyInstaller \
-              --clean \
-              --noconfirm \
-              --name ImageToPDF \
-              --windowed \
-              --target-arch x86_64 \
-              --distpath ./dist \
-              --workpath ./build \
-              --osx-bundle-identifier "com.doudoudoufff.imagetopdf" \
-              main.py
+            arch -x86_64 /bin/bash -c "
+              echo 'Starting PyInstaller build...'
+              python -m PyInstaller --version
+              python -m PyInstaller \
+                --clean \
+                --noconfirm \
+                --name ImageToPDF \
+                --windowed \
+                --target-arch x86_64 \
+                --distpath ./dist \
+                --workpath ./build \
+                --osx-bundle-identifier 'com.doudoudoufff.imagetopdf' \
+                main.py
+            "
           
       - name: Check build output
         run: |
           echo "Checking build output..."
           ls -la dist/
-          otool -L dist/ImageToPDF.app/Contents/MacOS/ImageToPDF || true
+          arch -x86_64 /bin/bash -c "otool -L dist/ImageToPDF.app/Contents/MacOS/ImageToPDF" || true
           
       - name: Package app
         run: |
