@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-13
     timeout-minutes: 30
     env:
       ARCHFLAGS: "-arch x86_64"
@@ -57,6 +57,14 @@ jobs:
             echo 'MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET'
             pip list
           "
+
+      - name: Build x86_64 PyInstaller bootloader
+        run: |
+          cd "$(python -c 'import PyInstaller; print(PyInstaller.__path__[0])')/bootloader"
+          arch -x86_64 /bin/bash -c "
+            python3 ./waf configure --target-arch=x86_64 &&
+            python3 ./waf build
+          "
           
       - name: Build app
         uses: nick-fields/retry@v3
@@ -69,6 +77,7 @@ jobs:
               python -m PyInstaller \
                 --clean \
                 --noconfirm \
+                --target-arch x86_64 \
                 --name ImageToPDF \
                 --windowed \
                 --distpath ./dist \
