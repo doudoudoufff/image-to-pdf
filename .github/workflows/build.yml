@@ -10,6 +10,9 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    env:
+      ARCHFLAGS: "-arch x86_64"
+      SYSTEM_VERSION_COMPAT: "1"
     steps:
       - uses: actions/checkout@v4
       
@@ -22,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          ARCHFLAGS="-arch x86_64" pip install --no-cache-dir -r requirements.txt
           pip list
           
       - name: Check system info
@@ -32,12 +35,16 @@ jobs:
           uname -a
           echo "Current directory: $PWD"
           ls -la
+          
+      - name: Verify PIL architecture
+        run: |
+          python -c "from PIL import _webp; print('PIL architecture check passed')"
       
       - name: Build app
         run: |
           echo "Starting PyInstaller build..."
           python -m PyInstaller --version
-          python -m PyInstaller \
+          ARCHFLAGS="-arch x86_64" python -m PyInstaller \
             --clean \
             --noconfirm \
             --name ImageToPDF \
