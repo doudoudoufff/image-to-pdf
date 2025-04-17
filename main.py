@@ -239,7 +239,9 @@ class ImageToPDFConverter:
                         -new_height/2, -new_width/2,
                         width=new_height,
                         height=new_width,
-                        preserveAspectRatio=True
+                        preserveAspectRatio=True,
+                        mask='auto',  # 保持透明度
+                        preserveColorSpace=True  # 保持颜色空间
                     )
                     c.restoreState()
                 else:
@@ -249,7 +251,9 @@ class ImageToPDFConverter:
                         x, y,
                         width=new_width,
                         height=new_height,
-                        preserveAspectRatio=True
+                        preserveAspectRatio=True,
+                        mask='auto',  # 保持透明度
+                        preserveColorSpace=True  # 保持颜色空间
                     )
                 
                 # 添加文件名
