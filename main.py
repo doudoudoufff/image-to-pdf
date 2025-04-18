@@ -206,7 +206,7 @@ class ImageToPDFConverter:
                     subprocess.run([
                         'sips',
                         '-s', 'format', 'pdf',
-                        '-s', 'formatOptions', 'best',
+                        '-s', 'formatOptions', 'best,quality=0.8',
                         image_path,
                         '--out', temp_pdf
                     ], check=True)
