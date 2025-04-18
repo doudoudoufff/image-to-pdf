@@ -2,10 +2,14 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageOps, ExifTags
+import subprocess
+import tempfile
+import shutil
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
-import sys
+import PyPDF2
+import io
 
 class ImageToPDFConverter:
     def __init__(self):
@@ -45,7 +49,7 @@ class ImageToPDFConverter:
         # 说明文字
         description = ttk.Label(
             self.main_frame,
-            text="支持JPG、PNG等格式图片，自动处理方向，保持原始比例",
+            text="支持JPG、PNG等格式图片，自动处理方向，保持原始比例和颜色",
             wraplength=600
         )
         description.pack(pady=10)
@@ -126,47 +130,46 @@ class ImageToPDFConverter:
             self.status_label.config(text="已选择文件，可以开始转换")
             self.progress_var.set(0)
             
-    def analyze_image(self, image_path):
-        """分析图片并返回正确的尺寸和方向信息"""
-        with Image.open(image_path) as img:
-            # 获取原始EXIF方向信息
-            try:
-                exif = img.getexif()
-                orientation = exif.get(0x0112) if exif else None
-            except:
-                orientation = None
+    def add_filename_to_pdf(self, input_pdf, output_pdf, filename):
+        # 读取原始PDF
+        reader = PyPDF2.PdfReader(input_pdf)
+        writer = PyPDF2.PdfWriter()
+        
+        # 获取第一页
+        page = reader.pages[0]
+        page_width = float(page.mediabox.width)
+        page_height = float(page.mediabox.height)
+        
+        # 创建新的PDF页面来添加文件名
+        packet = io.BytesIO()
+        c = canvas.Canvas(packet, pagesize=(page_width, page_height))
+        
+        # 设置更大的字体大小
+        c.setFont("Helvetica-Bold", 14)
+        text_width = c.stringWidth(filename, "Helvetica-Bold", 14)
+        
+        # 在底部添加白色背景
+        c.setFillColorRGB(1, 1, 1)  # 白色
+        c.rect(0, 0, page_width, 50, fill=True)
+        
+        # 添加文件名
+        c.setFillColorRGB(0, 0, 0)  # 黑色
+        c.drawString((page_width - text_width) / 2, 20, filename)
+        c.save()
+        
+        # 将文件名页面与原始页面合并
+        packet.seek(0)
+        watermark = PyPDF2.PdfReader(packet)
+        watermark_page = watermark.pages[0]
+        page.merge_page(watermark_page)
+        
+        # 添加处理后的页面
+        writer.add_page(page)
+        
+        # 保存结果
+        with open(output_pdf, 'wb') as output_file:
+            writer.write(output_file)
             
-            # 使用 exif_transpose 自动处理图片方向
-            img = ImageOps.exif_transpose(img)
-            
-            # 获取处理后的尺寸
-            width, height = img.size
-            
-            # 判断是否为竖屏图片
-            is_portrait = height > width
-            
-            # 确定旋转方向
-            # 如果是竖屏图片，根据EXIF方向决定旋转方向
-            if is_portrait:
-                # EXIF方向值：
-                # 1: 0度
-                # 3: 180度
-                # 6: 顺时针90度
-                # 8: 逆时针90度
-                if orientation in [3, 6]:
-                    rotate_angle = -90  # 逆时针旋转
-                else:
-                    rotate_angle = 90  # 顺时针旋转
-            else:
-                rotate_angle = 0
-            
-            return {
-                'width': width,
-                'height': height,
-                'is_portrait': is_portrait,
-                'rotate_angle': rotate_angle
-            }
-    
     def convert_to_pdf(self):
         if not self.image_files:
             messagebox.showerror("错误", "请先选择图片文件")
@@ -182,91 +185,54 @@ class ImageToPDFConverter:
             return
             
         try:
-            # 创建PDF
-            c = canvas.Canvas(output_path)
-            margin = 0.5 * inch
-            total_files = len(self.image_files)
-            
-            # 转换进度
-            for i, image_path in enumerate(self.image_files):
-                # 更新进度条
-                progress = (i / total_files) * 100
-                self.progress_var.set(progress)
-                self.status_label.config(text=f"正在处理: {os.path.basename(image_path)}")
-                self.window.update()
+            # 创建临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                total_files = len(self.image_files)
+                pdf_files = []
                 
-                # 分析图片
-                img_info = self.analyze_image(image_path)
-                
-                # 设置页面方向
-                if img_info['is_portrait']:
-                    # 竖屏图片使用竖向页面
-                    page_width, page_height = A4
-                else:
-                    # 横屏图片使用横向页面
-                    page_width, page_height = landscape(A4)
-                
-                c.setPageSize((page_width, page_height))
-                
-                # 计算可用空间
-                available_width = page_width - (2 * margin)
-                available_height = page_height - (2 * margin) - 20  # 为文件名留出空间
-                
-                # 计算缩放比例
-                width_ratio = available_width / img_info['width']
-                height_ratio = available_height / img_info['height']
-                scale = min(width_ratio, height_ratio)
-                
-                # 计算最终尺寸（保持原始比例）
-                new_width = img_info['width'] * scale
-                new_height = img_info['height'] * scale
-                
-                # 计算居中位置
-                x = (page_width - new_width) / 2
-                y = (page_height - new_height) / 2
-                
-                # 添加图片，对于竖屏图片进行旋转
-                if img_info['is_portrait']:
-                    # 根据分析结果进行旋转
-                    c.saveState()
-                    # 移动原点到页面中心
-                    c.translate(page_width/2, page_height/2)
-                    # 根据分析的角度旋转
-                    c.rotate(img_info['rotate_angle'])
-                    # 绘制图片（需要交换宽度和高度）
-                    c.drawImage(
+                # 转换进度
+                for i, image_path in enumerate(self.image_files):
+                    # 更新进度条
+                    progress = (i / total_files) * 100
+                    self.progress_var.set(progress)
+                    self.status_label.config(text=f"正在处理: {os.path.basename(image_path)}")
+                    self.window.update()
+                    
+                    # 使用 sips 命令转换单个图片为 PDF
+                    temp_pdf = os.path.join(temp_dir, f"temp_{i}.pdf")
+                    final_pdf = os.path.join(temp_dir, f"final_{i}.pdf")
+                    
+                    # 转换图片为PDF
+                    subprocess.run([
+                        'sips',
+                        '-s', 'format', 'pdf',
+                        '-s', 'formatOptions', 'best',
                         image_path,
-                        -new_height/2, -new_width/2,
-                        width=new_height,
-                        height=new_width,
-                        preserveAspectRatio=True,
-                        mask='auto',  # 保持透明度
-                        preserveColorSpace=True  # 保持颜色空间
+                        '--out', temp_pdf
+                    ], check=True)
+                    
+                    # 添加文件名
+                    self.add_filename_to_pdf(
+                        temp_pdf,
+                        final_pdf,
+                        os.path.basename(image_path)
                     )
-                    c.restoreState()
+                    
+                    pdf_files.append(final_pdf)
+                
+                # 如果只有一个文件，直接移动到目标位置
+                if total_files == 1:
+                    shutil.move(pdf_files[0], output_path)
                 else:
-                    # 横屏图片正常绘制
-                    c.drawImage(
-                        image_path,
-                        x, y,
-                        width=new_width,
-                        height=new_height,
-                        preserveAspectRatio=True,
-                        mask='auto',  # 保持透明度
-                        preserveColorSpace=True  # 保持颜色空间
-                    )
-                
-                # 添加文件名
-                filename = os.path.basename(image_path)
-                c.setFont("Helvetica", 12)
-                text_width = c.stringWidth(filename, "Helvetica", 12)
-                c.drawString((page_width - text_width) / 2, y - 20, filename)
-                
-                # 添加新页面
-                c.showPage()
+                    # 使用 PyPDF2 合并所有 PDF
+                    merger = PyPDF2.PdfMerger()
+                    for pdf_file in pdf_files:
+                        merger.append(pdf_file)
+                    
+                    # 保存合并后的 PDF
+                    with open(output_path, 'wb') as output_file:
+                        merger.write(output_file)
             
-            # 保存PDF
-            c.save()
             self.progress_var.set(100)
             messagebox.showinfo("成功", "PDF转换完成！")
             self.status_label.config(text="转换完成！")
