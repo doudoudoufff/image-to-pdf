@@ -1,0 +1,13 @@
+# Core dependencies for optimized version
+Pillow>=10.2.0
+reportlab>=4.1.0
+pypdf>=4.0.0
+
+# Development and packaging
+pyinstaller>=6.5.0
+
+# Optional for advanced image processing
+pillow-simd>=10.2.0  # SIMD-optimized Pillow (optional, install if available)
+
+# Memory profiling (development only)
+# memory-profiler>=0.60.0  # Uncomment for memory debugging
