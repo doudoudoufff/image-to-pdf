@@ -211,6 +211,10 @@ class ImageToPDFConverter:
                 c.drawImage(temp_img_path, x, y, width=new_width, height=new_height)
                 c.save()
                 
+                # 确保PDF文件正确关闭
+                c.showPage()
+                c.save()
+                
                 # 删除临时图片文件
                 try:
                     os.remove(temp_img_path)
@@ -234,6 +238,7 @@ class ImageToPDFConverter:
         if not output_path:
             return
             
+        temp_files_to_cleanup = []
         try:
             # 创建临时目录
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -255,6 +260,7 @@ class ImageToPDFConverter:
                     # 转换图片为PDF
                     self.convert_image_to_pdf(image_path, temp_pdf, filename)
                     pdf_files.append(temp_pdf)
+                    temp_files_to_cleanup.append(temp_pdf)
                 
                 # 如果只有一个文件，直接移动到目标位置
                 if total_files == 1:
@@ -262,12 +268,18 @@ class ImageToPDFConverter:
                 else:
                     # 使用 PyPDF2 合并所有 PDF
                     merger = PyPDF2.PdfMerger()
-                    for pdf_file in pdf_files:
-                        merger.append(pdf_file)
-                    
-                    # 保存合并后的 PDF
-                    with open(output_path, 'wb') as output_file:
-                        merger.write(output_file)
+                    try:
+                        for pdf_file in pdf_files:
+                            # 确保文件存在且可读
+                            if os.path.exists(pdf_file):
+                                merger.append(pdf_file)
+                        
+                        # 保存合并后的 PDF
+                        with open(output_path, 'wb') as output_file:
+                            merger.write(output_file)
+                    finally:
+                        # 确保merger被正确关闭
+                        merger.close()
             
             self.progress_var.set(100)
             messagebox.showinfo("成功", "PDF转换完成！")
@@ -277,6 +289,14 @@ class ImageToPDFConverter:
             messagebox.showerror("错误", f"转换过程中出现错误：{str(e)}")
             self.status_label.config(text="转换失败！")
         finally:
+            # 清理临时文件
+            for temp_file in temp_files_to_cleanup:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except:
+                    pass  # 忽略清理错误
+            
             # 重置进度条
             self.progress_var.set(0)
     
