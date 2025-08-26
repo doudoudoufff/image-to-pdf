@@ -30,7 +30,6 @@ jobs:
         
     - name: Create Windows release assets
       run: |
-        mkdir -p dist
         cd dist
         7z a -tzip "ImageToPDF-Windows.zip" "ImageToPDF-Windows.exe"
         
@@ -65,7 +64,6 @@ jobs:
         
     - name: Create macOS release assets
       run: |
-        mkdir -p dist
         cd dist
         zip -r "ImageToPDF-Mac.zip" "ImageToPDF-Mac"
         
