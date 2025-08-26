@@ -199,7 +199,8 @@ class ImageToPDFConverter:
                     pdf_height = img_height
                 
                 # 创建PDF（使用图片尺寸）
-                c = canvas.Canvas(output_pdf, pagesize=(pdf_width, pdf_height))
+                # reportlab的pagesize需要是(宽度, 高度)的元组
+                c = canvas.Canvas(output_pdf, pagesize=(float(pdf_width), float(pdf_height)))
                 
                 # 图片位置（不缩放，保持原始尺寸）
                 x = 0
@@ -216,16 +217,22 @@ class ImageToPDFConverter:
                     
                     # 添加文件名（支持中文）
                     c.setFillColorRGB(0, 0, 0)  # 黑色
-                    # 尝试使用支持中文的字体
+                    
+                    # 使用reportlab内置的中文字体支持
+                    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+                    
                     try:
-                        c.setFont("SimSun", 14)  # 宋体
+                        # 使用Unicode字体支持中文
+                        c.setFont("STSong-Light", 14)
                     except:
                         try:
-                            c.setFont("Microsoft YaHei", 14)  # 微软雅黑
+                            # 尝试其他中文字体
+                            c.setFont("HeiseiMin-W3", 14)
                         except:
-                            c.setFont("Helvetica", 14)  # 回退到默认字体
+                            # 回退到默认字体
+                            c.setFont("Helvetica", 14)
                     
-                    # 计算文本宽度（考虑中文字符）
+                    # 计算文本宽度
                     text_width = c.stringWidth(filename, c._fontname, 14)
                     c.drawString((pdf_width - text_width) / 2, 20, filename)
                 
