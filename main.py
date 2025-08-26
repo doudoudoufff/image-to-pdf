@@ -136,23 +136,36 @@ class ImageToPDFConverter:
     def convert_image_to_pdf(self, image_path, output_pdf, filename):
         """将图片转换为PDF，支持Windows和macOS"""
         try:
+            # 验证文件是否存在
+            if not os.path.exists(image_path):
+                raise Exception(f"文件不存在: {image_path}")
+            
             # 打开图片
             with Image.open(image_path) as img:
+                # 验证图片是否成功加载
+                if img is None:
+                    raise Exception("图片加载失败")
+                
+                # 验证图片尺寸
+                if img.size[0] <= 0 or img.size[1] <= 0:
+                    raise Exception("图片尺寸无效")
                 # 处理EXIF方向信息
                 try:
-                    for orientation in ExifTags.TAGS.keys():
-                        if ExifTags.TAGS[orientation] == 'Orientation':
-                            break
-                    exif = dict(img._getexif())
-                    
-                    if exif[orientation] == 3:
-                        img = img.rotate(180, expand=True)
-                    elif exif[orientation] == 6:
-                        img = img.rotate(270, expand=True)
-                    elif exif[orientation] == 8:
-                        img = img.rotate(90, expand=True)
-                except (AttributeError, KeyError, IndexError):
-                    # 没有EXIF信息，跳过
+                    exif = img._getexif()
+                    if exif is not None:
+                        for orientation in ExifTags.TAGS.keys():
+                            if ExifTags.TAGS[orientation] == 'Orientation':
+                                break
+                        
+                        if orientation in exif:
+                            if exif[orientation] == 3:
+                                img = img.rotate(180, expand=True)
+                            elif exif[orientation] == 6:
+                                img = img.rotate(270, expand=True)
+                            elif exif[orientation] == 8:
+                                img = img.rotate(90, expand=True)
+                except (AttributeError, KeyError, IndexError, TypeError):
+                    # 没有EXIF信息或处理失败，跳过
                     pass
                 
                 # 转换为RGB模式（如果需要）
@@ -190,7 +203,8 @@ class ImageToPDFConverter:
                 c.drawString((pdf_width - text_width) / 2, 20, filename)
                 
                 # 将图片保存到临时文件
-                temp_img_path = output_pdf.replace('.pdf', '_temp.jpg')
+                import tempfile
+                temp_img_path = tempfile.mktemp(suffix='.jpg')
                 img.save(temp_img_path, 'JPEG', quality=95)
                 
                 # 在PDF中插入图片
@@ -198,7 +212,10 @@ class ImageToPDFConverter:
                 c.save()
                 
                 # 删除临时图片文件
-                os.remove(temp_img_path)
+                try:
+                    os.remove(temp_img_path)
+                except:
+                    pass  # 忽略删除临时文件时的错误
                 
         except Exception as e:
             raise Exception(f"处理图片 {filename} 时出错: {str(e)}")
