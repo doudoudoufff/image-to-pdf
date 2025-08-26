@@ -89,8 +89,7 @@ class ImageToPDFConverter:
         self.show_filename_check = ttk.Checkbutton(
             options_frame,
             text="在PDF中显示文件名",
-            variable=self.show_filename_var,
-            style='TLabel'
+            variable=self.show_filename_var
         )
         self.show_filename_check.pack(pady=5)
         
@@ -277,7 +276,9 @@ class ImageToPDFConverter:
                     filename = os.path.basename(image_path)
                     
                     # 转换图片为PDF
-                    self.convert_image_to_pdf(image_path, temp_pdf, filename, self.show_filename_var.get())
+                    show_filename = self.show_filename_var.get()
+                    print(f"Debug: show_filename = {show_filename}")  # 调试信息
+                    self.convert_image_to_pdf(image_path, temp_pdf, filename, show_filename)
                     pdf_files.append(temp_pdf)
                     temp_files_to_cleanup.append(temp_pdf)
                 
