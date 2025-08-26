@@ -2,7 +2,6 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageOps, ExifTags
-import subprocess
 import tempfile
 import shutil
 from reportlab.pdfgen import canvas
@@ -10,6 +9,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
 import PyPDF2
 import io
+import platform
 
 class ImageToPDFConverter:
     def __init__(self):
@@ -36,6 +36,9 @@ class ImageToPDFConverter:
         
         # 存储选择的图片文件
         self.image_files = []
+        
+        # 检测操作系统
+        self.is_windows = platform.system() == "Windows"
         
     def create_widgets(self):
         # 标题
@@ -129,46 +132,76 @@ class ImageToPDFConverter:
             self.convert_button.config(state=tk.NORMAL)
             self.status_label.config(text="已选择文件，可以开始转换")
             self.progress_var.set(0)
-            
-    def add_filename_to_pdf(self, input_pdf, output_pdf, filename):
-        # 读取原始PDF
-        reader = PyPDF2.PdfReader(input_pdf)
-        writer = PyPDF2.PdfWriter()
-        
-        # 获取第一页
-        page = reader.pages[0]
-        page_width = float(page.mediabox.width)
-        page_height = float(page.mediabox.height)
-        
-        # 创建新的PDF页面来添加文件名
-        packet = io.BytesIO()
-        c = canvas.Canvas(packet, pagesize=(page_width, page_height))
-        
-        # 设置更大的字体大小
-        c.setFont("Helvetica-Bold", 14)
-        text_width = c.stringWidth(filename, "Helvetica-Bold", 14)
-        
-        # 在底部添加白色背景
-        c.setFillColorRGB(1, 1, 1)  # 白色
-        c.rect(0, 0, page_width, 50, fill=True)
-        
-        # 添加文件名
-        c.setFillColorRGB(0, 0, 0)  # 黑色
-        c.drawString((page_width - text_width) / 2, 20, filename)
-        c.save()
-        
-        # 将文件名页面与原始页面合并
-        packet.seek(0)
-        watermark = PyPDF2.PdfReader(packet)
-        watermark_page = watermark.pages[0]
-        page.merge_page(watermark_page)
-        
-        # 添加处理后的页面
-        writer.add_page(page)
-        
-        # 保存结果
-        with open(output_pdf, 'wb') as output_file:
-            writer.write(output_file)
+    
+    def convert_image_to_pdf(self, image_path, output_pdf, filename):
+        """将图片转换为PDF，支持Windows和macOS"""
+        try:
+            # 打开图片
+            with Image.open(image_path) as img:
+                # 处理EXIF方向信息
+                try:
+                    for orientation in ExifTags.TAGS.keys():
+                        if ExifTags.TAGS[orientation] == 'Orientation':
+                            break
+                    exif = dict(img._getexif())
+                    
+                    if exif[orientation] == 3:
+                        img = img.rotate(180, expand=True)
+                    elif exif[orientation] == 6:
+                        img = img.rotate(270, expand=True)
+                    elif exif[orientation] == 8:
+                        img = img.rotate(90, expand=True)
+                except (AttributeError, KeyError, IndexError):
+                    # 没有EXIF信息，跳过
+                    pass
+                
+                # 转换为RGB模式（如果需要）
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # 获取图片尺寸
+                img_width, img_height = img.size
+                
+                # 计算PDF页面尺寸（A4）
+                pdf_width, pdf_height = A4
+                
+                # 计算缩放比例，保持宽高比
+                scale_x = pdf_width / img_width
+                scale_y = pdf_height / img_height
+                scale = min(scale_x, scale_y) * 0.9  # 留一些边距
+                
+                # 计算在PDF中的位置（居中）
+                new_width = img_width * scale
+                new_height = img_height * scale
+                x = (pdf_width - new_width) / 2
+                y = (pdf_height - new_height) / 2 + 50  # 为文件名留出空间
+                
+                # 创建PDF
+                c = canvas.Canvas(output_pdf, pagesize=A4)
+                
+                # 添加文件名背景
+                c.setFillColorRGB(1, 1, 1)  # 白色
+                c.rect(0, 0, pdf_width, 50, fill=True)
+                
+                # 添加文件名
+                c.setFillColorRGB(0, 0, 0)  # 黑色
+                c.setFont("Helvetica-Bold", 14)
+                text_width = c.stringWidth(filename, "Helvetica-Bold", 14)
+                c.drawString((pdf_width - text_width) / 2, 20, filename)
+                
+                # 将图片保存到临时文件
+                temp_img_path = output_pdf.replace('.pdf', '_temp.jpg')
+                img.save(temp_img_path, 'JPEG', quality=95)
+                
+                # 在PDF中插入图片
+                c.drawImage(temp_img_path, x, y, width=new_width, height=new_height)
+                c.save()
+                
+                # 删除临时图片文件
+                os.remove(temp_img_path)
+                
+        except Exception as e:
+            raise Exception(f"处理图片 {filename} 时出错: {str(e)}")
             
     def convert_to_pdf(self):
         if not self.image_files:
@@ -198,27 +231,13 @@ class ImageToPDFConverter:
                     self.status_label.config(text=f"正在处理: {os.path.basename(image_path)}")
                     self.window.update()
                     
-                    # 使用 sips 命令转换单个图片为 PDF
+                    # 生成临时PDF文件路径
                     temp_pdf = os.path.join(temp_dir, f"temp_{i}.pdf")
-                    final_pdf = os.path.join(temp_dir, f"final_{i}.pdf")
+                    filename = os.path.basename(image_path)
                     
                     # 转换图片为PDF
-                    subprocess.run([
-                        'sips',
-                        '-s', 'format', 'pdf',
-                        '-s', 'formatOptions', 'best,quality=0.8',
-                        image_path,
-                        '--out', temp_pdf
-                    ], check=True)
-                    
-                    # 添加文件名
-                    self.add_filename_to_pdf(
-                        temp_pdf,
-                        final_pdf,
-                        os.path.basename(image_path)
-                    )
-                    
-                    pdf_files.append(final_pdf)
+                    self.convert_image_to_pdf(image_path, temp_pdf, filename)
+                    pdf_files.append(temp_pdf)
                 
                 # 如果只有一个文件，直接移动到目标位置
                 if total_files == 1:

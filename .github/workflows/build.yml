@@ -1,106 +1,142 @@
-name: Build Intel Mac App
-
-# 添加权限配置
-permissions:
-  contents: write
+name: Build Multi-Platform
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  build-macos:
-    runs-on: macos-13
-    timeout-minutes: 30
-    env:
-      ARCHFLAGS: "-arch x86_64"
-      SYSTEM_VERSION_COMPAT: "1"
-      MACOSX_DEPLOYMENT_TARGET: "13.0"
+  build-windows:
+    runs-on: windows-latest
+    
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          architecture: 'x64'
-      
-      - name: Install dependencies
-        run: |
-          arch -x86_64 /bin/bash -c "
-            python -m pip install --upgrade pip
-            pip install --no-cache-dir -r requirements.txt
-            pip install py2app
-          "
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Build Windows executable
+      run: |
+        pyinstaller --onefile --windowed --name "ImageToPDF-Windows" main.py
+        
+    - name: Create Windows release assets
+      run: |
+        mkdir -p dist
+        cd dist
+        7z a -tzip "ImageToPDF-Windows.zip" "ImageToPDF-Windows.exe"
+        
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ImageToPDF-Windows
+        path: |
+          dist/ImageToPDF-Windows.exe
+          dist/ImageToPDF-Windows.zip
 
-      - name: Create setup.py
-        run: |
-          cat > setup.py << 'EOL'
-          from setuptools import setup
-
-          setup(
-              app=['main.py'],
-              name='ImageToPDF',
-              setup_requires=['py2app'],
-              options={
-                  'py2app': {
-                      'argv_emulation': False,
-                      'packages': ['PIL', 'reportlab'],
-                      'iconfile': None,
-                      'plist': {
-                          'CFBundleName': 'ImageToPDF',
-                          'CFBundleDisplayName': 'ImageToPDF',
-                          'CFBundleIdentifier': 'com.doudoudoufff.imagetopdf',
-                          'CFBundleVersion': '1.0.0',
-                          'CFBundleShortVersionString': '1.0.0',
-                          'LSMinimumSystemVersion': '13.0',
-                          'NSHighResolutionCapable': True,
-                      }
-                  }
-              }
-          )
-          EOL
-          
-      - name: Build app
-        run: |
-          arch -x86_64 /bin/bash -c "
-            echo 'Starting py2app build...'
-            python setup.py py2app --arch x86_64
-          "
-          
-      - name: Check build output
-        run: |
-          echo "Checking build output..."
-          ls -la dist/
-          arch -x86_64 /bin/bash -c "otool -L dist/ImageToPDF.app/Contents/MacOS/ImageToPDF" || true
-          
-      - name: Package app
-        run: |
-          echo "Creating zip archive..."
-          cd dist
-          ls -la
-          if [ -d "ImageToPDF.app" ]; then
-            zip -r ImageToPDF-Intel-Mac.zip ImageToPDF.app
-            echo "Zip file created successfully"
-          else
-            echo "Error: ImageToPDF.app directory not found"
-            exit 1
-          fi
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
       
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ImageToPDF-Intel-Mac
-          path: dist/ImageToPDF-Intel-Mac.zip
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Build macOS app
+      run: |
+        pyinstaller --onefile --windowed --name "ImageToPDF-Mac" main.py
+        
+    - name: Create macOS release assets
+      run: |
+        mkdir -p dist
+        cd dist
+        zip -r "ImageToPDF-Mac.zip" "ImageToPDF-Mac"
+        
+    - name: Upload macOS artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ImageToPDF-Mac
+        path: |
+          dist/ImageToPDF-Mac
+          dist/ImageToPDF-Mac.zip
+
+  create-release:
+    needs: [build-windows, build-macos]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download Windows artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ImageToPDF-Windows
+        path: windows-artifacts
+        
+    - name: Download macOS artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ImageToPDF-Mac
+        path: macos-artifacts
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          windows-artifacts/ImageToPDF-Windows.exe
+          windows-artifacts/ImageToPDF-Windows.zip
+          macos-artifacts/ImageToPDF-Mac
+          macos-artifacts/ImageToPDF-Mac.zip
+        body: |
+          ## 图片转PDF工具 v${{ github.ref_name }}
           
-      - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/ImageToPDF-Intel-Mac.zip
-          name: Intel Mac Release
-          tag_name: v${{ github.run_number }}
-          generate_release_notes: true 
+          ### 功能特点
+          - 支持JPG、PNG等格式图片
+          - 自动处理图片方向
+          - 保持原始比例和颜色
+          - 每页显示一张图片
+          - 图片下方显示文件名
+          - 支持多文件合并
+          - 跨平台支持（Windows/macOS）
+          
+          ### Windows用户
+          1. 下载 `ImageToPDF-Windows.zip`
+          2. 解压文件
+          3. 双击运行 `ImageToPDF-Windows.exe`
+          4. 如果提示安全警告，点击"仍要运行"
+          
+          ### macOS用户
+          1. 下载 `ImageToPDF-Mac.zip`
+          2. 解压文件
+          3. 双击运行 `ImageToPDF-Mac`
+          4. 如果提示"无法打开"，请在Finder中右键选择"打开"
+          
+          ### 使用方法
+          1. 运行程序
+          2. 点击"选择图片文件"按钮
+          3. 选择要转换的图片文件（支持多选）
+          4. 点击"转换为PDF"按钮
+          5. 选择保存位置和文件名
+          6. 等待转换完成
+          
+          ### 系统要求
+          - Windows 10/11 或 macOS 10.15+
+          - 无需安装Python环境
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
