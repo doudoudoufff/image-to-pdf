@@ -80,6 +80,20 @@ class ImageToPDFConverter:
         )
         self.convert_button.pack(side=tk.LEFT, padx=10)
         
+        # 选项框架
+        options_frame = ttk.LabelFrame(self.main_frame, text="转换选项", padding="10")
+        options_frame.pack(fill=tk.X, pady=10)
+        
+        # 文件名显示选项
+        self.show_filename_var = tk.BooleanVar(value=True)
+        self.show_filename_check = ttk.Checkbutton(
+            options_frame,
+            text="在PDF中显示文件名",
+            variable=self.show_filename_var,
+            style='TLabel'
+        )
+        self.show_filename_check.pack(pady=5)
+        
         # 文件信息框架
         info_frame = ttk.LabelFrame(self.main_frame, text="文件信息", padding="10")
         info_frame.pack(fill=tk.X, pady=20)
@@ -133,7 +147,7 @@ class ImageToPDFConverter:
             self.status_label.config(text="已选择文件，可以开始转换")
             self.progress_var.set(0)
     
-    def convert_image_to_pdf(self, image_path, output_pdf, filename):
+    def convert_image_to_pdf(self, image_path, output_pdf, filename, show_filename=True):
         """将图片转换为PDF，支持Windows和macOS"""
         try:
             # 验证文件是否存在
@@ -187,20 +201,27 @@ class ImageToPDFConverter:
                 new_width = img_width * scale
                 new_height = img_height * scale
                 x = (pdf_width - new_width) / 2
-                y = (pdf_height - new_height) / 2 + 50  # 为文件名留出空间
+                
+                # 根据是否显示文件名调整图片位置
+                if show_filename:
+                    y = (pdf_height - new_height) / 2 + 50  # 为文件名留出空间
+                else:
+                    y = (pdf_height - new_height) / 2  # 居中显示
                 
                 # 创建PDF
                 c = canvas.Canvas(output_pdf, pagesize=A4)
                 
-                # 添加文件名背景
-                c.setFillColorRGB(1, 1, 1)  # 白色
-                c.rect(0, 0, pdf_width, 50, fill=True)
-                
-                # 添加文件名
-                c.setFillColorRGB(0, 0, 0)  # 黑色
-                c.setFont("Helvetica-Bold", 14)
-                text_width = c.stringWidth(filename, "Helvetica-Bold", 14)
-                c.drawString((pdf_width - text_width) / 2, 20, filename)
+                # 根据选项决定是否显示文件名
+                if show_filename:
+                    # 添加文件名背景
+                    c.setFillColorRGB(1, 1, 1)  # 白色
+                    c.rect(0, 0, pdf_width, 50, fill=True)
+                    
+                    # 添加文件名
+                    c.setFillColorRGB(0, 0, 0)  # 黑色
+                    c.setFont("Helvetica-Bold", 14)
+                    text_width = c.stringWidth(filename, "Helvetica-Bold", 14)
+                    c.drawString((pdf_width - text_width) / 2, 20, filename)
                 
                 # 将图片保存到临时文件
                 import tempfile
@@ -256,7 +277,7 @@ class ImageToPDFConverter:
                     filename = os.path.basename(image_path)
                     
                     # 转换图片为PDF
-                    self.convert_image_to_pdf(image_path, temp_pdf, filename)
+                    self.convert_image_to_pdf(image_path, temp_pdf, filename, self.show_filename_var.get())
                     pdf_files.append(temp_pdf)
                     temp_files_to_cleanup.append(temp_pdf)
                 
