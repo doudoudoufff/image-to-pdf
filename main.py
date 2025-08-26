@@ -188,27 +188,25 @@ class ImageToPDFConverter:
                 # 获取图片尺寸
                 img_width, img_height = img.size
                 
-                # 计算PDF页面尺寸（A4）
-                pdf_width, pdf_height = A4
-                
-                # 计算缩放比例，保持宽高比
-                scale_x = pdf_width / img_width
-                scale_y = pdf_height / img_height
-                scale = min(scale_x, scale_y) * 0.9  # 留一些边距
-                
-                # 计算在PDF中的位置（居中）
-                new_width = img_width * scale
-                new_height = img_height * scale
-                x = (pdf_width - new_width) / 2
-                
-                # 根据是否显示文件名调整图片位置
+                # 计算PDF页面尺寸（与图片基本一致）
                 if show_filename:
-                    y = (pdf_height - new_height) / 2 + 50  # 为文件名留出空间
+                    # 显示文件名时，页面高度增加50像素
+                    pdf_width = img_width
+                    pdf_height = img_height + 50
                 else:
-                    y = (pdf_height - new_height) / 2  # 居中显示
+                    # 不显示文件名时，页面尺寸与图片完全一致
+                    pdf_width = img_width
+                    pdf_height = img_height
                 
-                # 创建PDF
-                c = canvas.Canvas(output_pdf, pagesize=A4)
+                # 创建PDF（使用图片尺寸）
+                c = canvas.Canvas(output_pdf, pagesize=(pdf_width, pdf_height))
+                
+                # 图片位置（不缩放，保持原始尺寸）
+                x = 0
+                if show_filename:
+                    y = 50  # 为文件名留出空间
+                else:
+                    y = 0  # 从顶部开始
                 
                 # 根据选项决定是否显示文件名
                 if show_filename:
@@ -216,10 +214,19 @@ class ImageToPDFConverter:
                     c.setFillColorRGB(1, 1, 1)  # 白色
                     c.rect(0, 0, pdf_width, 50, fill=True)
                     
-                    # 添加文件名
+                    # 添加文件名（支持中文）
                     c.setFillColorRGB(0, 0, 0)  # 黑色
-                    c.setFont("Helvetica-Bold", 14)
-                    text_width = c.stringWidth(filename, "Helvetica-Bold", 14)
+                    # 尝试使用支持中文的字体
+                    try:
+                        c.setFont("SimSun", 14)  # 宋体
+                    except:
+                        try:
+                            c.setFont("Microsoft YaHei", 14)  # 微软雅黑
+                        except:
+                            c.setFont("Helvetica", 14)  # 回退到默认字体
+                    
+                    # 计算文本宽度（考虑中文字符）
+                    text_width = c.stringWidth(filename, c._fontname, 14)
                     c.drawString((pdf_width - text_width) / 2, 20, filename)
                 
                 # 将图片保存到临时文件
@@ -227,8 +234,8 @@ class ImageToPDFConverter:
                 temp_img_path = tempfile.mktemp(suffix='.jpg')
                 img.save(temp_img_path, 'JPEG', quality=95)
                 
-                # 在PDF中插入图片
-                c.drawImage(temp_img_path, x, y, width=new_width, height=new_height)
+                # 在PDF中插入图片（保持原始尺寸）
+                c.drawImage(temp_img_path, x, y, width=img_width, height=img_height)
                 
                 # 保存PDF文件（只能保存一次）
                 c.save()
@@ -277,7 +284,6 @@ class ImageToPDFConverter:
                     
                     # 转换图片为PDF
                     show_filename = self.show_filename_var.get()
-                    print(f"Debug: show_filename = {show_filename}")  # 调试信息
                     self.convert_image_to_pdf(image_path, temp_pdf, filename, show_filename)
                     pdf_files.append(temp_pdf)
                     temp_files_to_cleanup.append(temp_pdf)
