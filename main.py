@@ -209,10 +209,8 @@ class ImageToPDFConverter:
                 
                 # 在PDF中插入图片
                 c.drawImage(temp_img_path, x, y, width=new_width, height=new_height)
-                c.save()
                 
-                # 确保PDF文件正确关闭
-                c.showPage()
+                # 保存PDF文件（只能保存一次）
                 c.save()
                 
                 # 删除临时图片文件
