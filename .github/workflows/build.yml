@@ -2,6 +2,7 @@ name: Build Flutter Desktop
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
   workflow_dispatch:
