@@ -1,93 +1,59 @@
-# 图片转PDF工具
+# 图片转 PDF 工具
 
-这是一个简单的图片转PDF工具，支持将文件夹中的图片转换为PDF文件，每页显示一张图片，并在图片下方显示文件名。
+将多张图片合并为一个 PDF 的桌面应用，支持 **Windows** 与 **macOS**。主程序为 Flutter 实现，源码位于 [`app/`](app/)。
 
 ## 功能特点
 
-- 支持中英文文件名
-- 支持横竖屏图片混排
-- 每页显示一张图片
-- 图片下方显示文件名
-- 显示转换进度条
-- 图形用户界面操作简单
-- 跨平台支持（Windows/macOS）
+- 可多次「添加图片」，从**不同文件夹**累积到同一列表（自动按路径去重）
+- 列表支持**拖拽排序**、单条移除
+- 每张图片一页；按校正后的宽高比自动选择 **A4 横版或竖版** 页面
+- 图片在页内**等比缩放**以适配可编辑区域（不放大，避免模糊）
+- 每页底部显示**文件名**（嵌入 Noto Sans SC，支持中文与英文）
+- 自动处理 **EXIF 方向**（手机竖拍等）
+- 支持格式：PNG、JPG/JPEG、BMP、GIF
 
-## 下载使用
+## 下载使用（发行包）
 
-### Windows用户
+在仓库的 GitHub Releases 页面下载对应平台的 zip：
 
-1. 从 [GitHub Releases](../../releases) 下载最新的 `ImageToPDF-Windows.zip`
-2. 解压下载的文件
-3. 双击运行 `ImageToPDF-Windows.exe`
-4. 如果提示安全警告，点击"仍要运行"
+- **Windows**：解压后运行目录中的 `image_to_pdf.exe`（具体文件名以构建产物为准）。
+- **macOS**：解压后打开 `image_to_pdf.app`；若提示无法打开，请在 Finder 中对该 app **右键 → 打开**。
 
-### Intel Mac 用户
+## 开发者：本地运行
 
-1. 从 [GitHub Releases](../../releases) 下载最新的 `ImageToPDF-Intel-Mac.zip`
-2. 解压下载的文件
-3. 双击运行 `ImageToPDF.app`
-4. 如果提示"无法打开"，请：
-   - 在 Finder 中找到 ImageToPDF.app
-   - 按住 Control 键并点击程序图标
-   - 从菜单中选择"打开"
-   - 在弹出的对话框中点击"打开"
-
-## 支持的图片格式
-
-- PNG
-- JPG/JPEG
-- BMP
-- GIF
-
-## 使用方法
-
-1. 运行程序
-2. 点击"选择图片文件"按钮
-3. 选择要转换的图片文件（支持多选）
-4. 点击"转换为PDF"按钮
-5. 选择保存位置和文件名
-6. 等待转换完成
-
-## 开发者信息
-
-### 系统要求
-
-- Python 3.6+
-- Windows 10/11 或 macOS
-
-### 安装依赖
+环境：**Flutter**（stable，需启用桌面支持）、本仓库已包含 `windows/` 与 `macos/` 工程。
 
 ```bash
-pip install -r requirements.txt
+cd app
+flutter pub get
+flutter run -d macos
+# 或
+flutter run -d windows
 ```
 
-### 本地构建
+中文字体文件已包含在 `app/assets/fonts/NotoSansSC-Regular.otf`（见 `app/pubspec.yaml` 资源声明）。
 
-#### Windows版本
-```bash
-python build_windows.py
-```
-
-#### macOS版本
-```bash
-pyinstaller --onefile --windowed main.py
-```
-
-### GitHub Actions自动构建
-
-项目配置了GitHub Actions，当推送tag时会自动构建：
+## 构建发行版
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+cd app
+flutter build macos --release
+flutter build windows --release
 ```
 
-构建完成后会在GitHub Releases页面生成对应的安装包。
+- macOS 产物：`app/build/macos/Build/Products/Release/image_to_pdf.app`
+- Windows 产物：`app/build/windows/x64/runner/Release/` 下可执行文件及依赖
 
-## 技术实现
+推送以 `v` 开头的 tag 时，GitHub Actions 会构建并上传上述平台的 zip 包（见 [.github/workflows/build.yml](.github/workflows/build.yml)）。
 
-- **GUI框架**: tkinter
-- **图片处理**: Pillow (PIL)
-- **PDF生成**: reportlab + PyPDF2
-- **打包工具**: PyInstaller
-- **跨平台**: 自动检测操作系统并使用相应的实现方式 
+## 旧版 Python 工具
+
+改造前的 tkinter 版本源码在 [`legacy/`](legacy/)，仅供参考。
+
+## 技术栈（Flutter）
+
+- UI：Flutter / Material 3  
+- 图片：`image`（解码与 EXIF）  
+- PDF：`pdf`  
+- 文件选择：`file_picker`  
+- 字体：Noto Sans SC（OFL，随应用打包）
