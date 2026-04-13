@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 
 import '../constants.dart';
+import '../image_queue_item.dart';
 import '../services/pdf_export_service.dart';
 import 'pdf_export_preview_dialog.dart';
 
@@ -18,7 +19,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final List<String> _paths = [];
+  final List<ImageQueueItem> _items = [];
   final PdfExportService _pdf = PdfExportService();
 
   bool _dropHighlight = false;
@@ -38,17 +39,31 @@ class _HomePageState extends State<HomePage> {
     '.gif',
   };
 
-  void _appendUniquePaths(List<String> incoming) {
-    final fresh = <String>[];
-    for (final path in incoming) {
-      if (path.isNotEmpty && !_paths.contains(path) && !fresh.contains(path)) {
-        fresh.add(path);
+  /// 用户可见的文件名（去掉路径分隔符；保留中文等 Unicode）。
+  static String _sanitizeDisplayName(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) {
+      return 'image';
+    }
+    return t.replaceAll(RegExp(r'[/\\\x00]'), '_');
+  }
+
+  void _appendItems(List<ImageQueueItem> incoming) {
+    final fresh = <ImageQueueItem>[];
+    for (final item in incoming) {
+      if (item.path.isEmpty) {
+        continue;
       }
+      if (_items.any((e) => e.path == item.path) ||
+          fresh.any((e) => e.path == item.path)) {
+        continue;
+      }
+      fresh.add(item);
     }
     if (fresh.isEmpty) {
       return;
     }
-    setState(() => _paths.addAll(fresh));
+    setState(() => _items.addAll(fresh));
   }
 
   Future<void> _addImages() async {
@@ -63,7 +78,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final added = <String>[];
+    final added = <ImageQueueItem>[];
     for (final f in result.files) {
       final name = f.name;
       final ext = p.extension(name).toLowerCase();
@@ -71,22 +86,25 @@ class _HomePageState extends State<HomePage> {
         continue;
       }
 
+      final displayName = _sanitizeDisplayName(name);
       var resolved = f.path;
       if (resolved == null || resolved.isEmpty) {
         final bytes = f.bytes;
         if (bytes == null || bytes.isEmpty) {
           continue;
         }
-        final safe = name.replaceAll(RegExp(r'[/\\\x00]'), '_');
+        final extSeg = ext.isEmpty ? '.img' : ext;
         final tmp = File(
-          '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}_$safe',
+          '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}$extSeg',
         );
         await tmp.writeAsBytes(bytes);
         resolved = tmp.path;
       }
 
       if (resolved.isNotEmpty) {
-        added.add(resolved);
+        added.add(
+          ImageQueueItem(path: resolved, displayName: displayName),
+        );
       }
     }
 
@@ -99,11 +117,11 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    _appendUniquePaths(added);
+    _appendItems(added);
   }
 
   Future<void> _handleDrop(DropDoneDetails details) async {
-    final added = <String>[];
+    final added = <ImageQueueItem>[];
     for (final item in details.files) {
       if (item is DropItemDirectory) {
         await _collectFromDropDirectory(item, added);
@@ -121,10 +139,10 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    _appendUniquePaths(added);
+    _appendItems(added);
   }
 
-  Future<void> _collectFromDropFile(DropItem item, List<String> added) async {
+  Future<void> _collectFromDropFile(DropItem item, List<ImageQueueItem> added) async {
     final name = item.name;
     final rawPath = item.path;
     final ext = p.extension(rawPath.isNotEmpty ? rawPath : name).toLowerCase();
@@ -144,12 +162,14 @@ class _HomePageState extends State<HomePage> {
         if (bytes.isEmpty) {
           return;
         }
-        final safe = name.replaceAll(RegExp(r'[/\\\x00]'), '_');
+        final displayName = _sanitizeDisplayName(name);
+        final ext = p.extension(name).toLowerCase();
+        final extSeg = ext.isEmpty ? '.img' : ext;
         final tmp = File(
-          '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}_$safe',
+          '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}$extSeg',
         );
         await tmp.writeAsBytes(bytes);
-        added.add(tmp.path);
+        added.add(ImageQueueItem(path: tmp.path, displayName: displayName));
         return;
       }
 
@@ -158,14 +178,17 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
+      final displayName = _sanitizeDisplayName(p.basename(rawPath));
       if (bm != null && bm.isNotEmpty) {
+        final ext = p.extension(rawPath).toLowerCase();
+        final extSeg = ext.isEmpty ? '.img' : ext;
         final tmp = File(
-          '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}_${p.basename(rawPath)}',
+          '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}$extSeg',
         );
         await src.copy(tmp.path);
-        added.add(tmp.path);
+        added.add(ImageQueueItem(path: tmp.path, displayName: displayName));
       } else {
-        added.add(rawPath);
+        added.add(ImageQueueItem(path: rawPath, displayName: displayName));
       }
     } finally {
       if (bm != null && bm.isNotEmpty) {
@@ -178,7 +201,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _collectFromDropDirectory(
     DropItemDirectory dir,
-    List<String> added,
+    List<ImageQueueItem> added,
   ) async {
     if (dir.children.isNotEmpty) {
       for (final child in dir.children) {
@@ -210,14 +233,19 @@ class _HomePageState extends State<HomePage> {
         if (!_allowedExtensions.contains(ext)) {
           continue;
         }
+        final displayName = _sanitizeDisplayName(p.basename(entity.path));
         if (bm != null && bm.isNotEmpty) {
+          final ext = p.extension(entity.path).toLowerCase();
+          final extSeg = ext.isEmpty ? '.img' : ext;
           final tmp = File(
-            '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}_${p.basename(entity.path)}',
+            '${Directory.systemTemp.path}/img2pdf_${DateTime.now().microsecondsSinceEpoch}$extSeg',
           );
           await entity.copy(tmp.path);
-          added.add(tmp.path);
+          added.add(ImageQueueItem(path: tmp.path, displayName: displayName));
         } else {
-          added.add(entity.path);
+          added.add(
+            ImageQueueItem(path: entity.path, displayName: displayName),
+          );
         }
       }
     } finally {
@@ -229,14 +257,14 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _removePath(String path) {
+  void _removeItem(ImageQueueItem item) {
     setState(() {
-      _paths.remove(path);
+      _items.remove(item);
     });
   }
 
   Future<void> _openExportPreview() async {
-    if (_paths.isEmpty) {
+    if (_items.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('请先添加图片。')));
@@ -248,7 +276,7 @@ class _HomePageState extends State<HomePage> {
         context: context,
         barrierDismissible: true,
         builder: (ctx) => PdfExportPreviewDialog(
-          paths: List<String>.from(_paths),
+          items: List<ImageQueueItem>.from(_items),
           pdfService: _pdf,
         ),
       );
@@ -266,8 +294,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// 缩略图区域像素上限：按格子尺寸解码，避免对高像素原图全尺寸解码（主线程与内存压力极大）。
-  Widget _buildGridTile(String path, TextTheme text) {
-    final name = p.basename(path);
+  Widget _buildGridTile(ImageQueueItem item, TextTheme text) {
+    final name = item.displayName;
     return Padding(
       padding: const EdgeInsets.all(4),
       child: Column(
@@ -292,7 +320,7 @@ class _HomePageState extends State<HomePage> {
                               .round()
                               .clamp(1, 4096);
                           return Image.file(
-                            File(path),
+                            File(item.path),
                             fit: BoxFit.contain,
                             alignment: Alignment.center,
                             filterQuality: FilterQuality.low,
@@ -319,7 +347,7 @@ class _HomePageState extends State<HomePage> {
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: () => _removePath(path),
+                      onTap: () => _removeItem(item),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(Icons.close, size: 16, color: _ink),
@@ -368,7 +396,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(width: 10),
                 OutlinedButton(
-                  onPressed: _paths.isEmpty ? null : _openExportPreview,
+                  onPressed: _items.isEmpty ? null : _openExportPreview,
                   child: const Text('预览并导出 PDF'),
                 ),
               ],
@@ -404,7 +432,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(kAppRadius),
-                    child: _paths.isEmpty
+                    child: _items.isEmpty
                         ? Center(
                             child: Padding(
                               padding: const EdgeInsets.all(24),
@@ -440,15 +468,15 @@ class _HomePageState extends State<HomePage> {
                                 if (newIndex > oldIndex) {
                                   newIndex -= 1;
                                 }
-                                final item = _paths.removeAt(oldIndex);
-                                _paths.insert(newIndex, item);
+                                final item = _items.removeAt(oldIndex);
+                                _items.insert(newIndex, item);
                               });
                             },
                             children: [
-                              for (final path in _paths)
+                              for (final item in _items)
                                 KeyedSubtree(
-                                  key: ValueKey(path),
-                                  child: _buildGridTile(path, text),
+                                  key: ValueKey(item.path),
+                                  child: _buildGridTile(item, text),
                                 ),
                             ],
                           ),

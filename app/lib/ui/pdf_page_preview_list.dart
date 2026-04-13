@@ -4,8 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-import 'package:path/path.dart' as p;
 
+import '../image_queue_item.dart';
 import '../pdf_layout_constants.dart';
 import '../services/image_pipeline.dart';
 
@@ -13,7 +13,7 @@ import '../services/image_pipeline.dart';
 class PdfPagePreviewList extends StatelessWidget {
   const PdfPagePreviewList({
     super.key,
-    required this.paths,
+    required this.items,
     required this.captionFontPt,
     required this.maxContentWidth,
     required this.captionAlignX,
@@ -21,7 +21,7 @@ class PdfPagePreviewList extends StatelessWidget {
     this.scrollController,
   });
 
-  final List<String> paths;
+  final List<ImageQueueItem> items;
   final double captionFontPt;
 
   /// 与 PDF [pw.Alignment] x 一致：-1 左 … 1 右。
@@ -40,12 +40,14 @@ class PdfPagePreviewList extends StatelessWidget {
     return ListView.separated(
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-      itemCount: paths.length,
+      itemCount: items.length,
       separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
+        final it = items[index];
         return _PdfPagePreviewCard(
-          key: ValueKey(paths[index]),
-          path: paths[index],
+          key: ValueKey(it.path),
+          path: it.path,
+          displayName: it.displayName,
           captionFontPt: captionFontPt,
           captionAlignX: captionAlignX,
           captionAlignY: captionAlignY,
@@ -72,15 +74,11 @@ Future<Size> _decodeImageSizeForPreview(String path) {
   });
 }
 
-String _displayNameForPath(String path) {
-  final raw = p.basename(path).trim();
-  return raw.isEmpty ? 'image' : raw;
-}
-
 class _PdfPagePreviewCard extends StatefulWidget {
   const _PdfPagePreviewCard({
     super.key,
     required this.path,
+    required this.displayName,
     required this.captionFontPt,
     required this.captionAlignX,
     required this.captionAlignY,
@@ -88,6 +86,7 @@ class _PdfPagePreviewCard extends StatefulWidget {
   });
 
   final String path;
+  final String displayName;
   final double captionFontPt;
   final double captionAlignX;
   final double captionAlignY;
@@ -133,7 +132,11 @@ class _PdfPagePreviewCardState extends State<_PdfPagePreviewCard> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return _ErrorTile(path: widget.path, error: _error!);
+      return _ErrorTile(
+        path: widget.path,
+        displayName: widget.displayName,
+        error: _error!,
+      );
     }
     if (_pixelSize == null) {
       return const SizedBox(
@@ -165,7 +168,7 @@ class _PdfPagePreviewCardState extends State<_PdfPagePreviewCard> {
       (layout.format.availableWidth - 2 * captionSideInsetPt) * ui,
     );
 
-    final name = _displayNameForPath(widget.path);
+    final name = widget.displayName;
     final ax = widget.captionAlignX.clamp(-1.0, 1.0);
     final ay = widget.captionAlignY.clamp(-1.0, 1.0);
     final nameAlign = ax <= -0.33
@@ -261,16 +264,21 @@ class _PdfPagePreviewCardState extends State<_PdfPagePreviewCard> {
 }
 
 class _ErrorTile extends StatelessWidget {
-  const _ErrorTile({required this.path, required this.error});
+  const _ErrorTile({
+    required this.path,
+    required this.displayName,
+    required this.error,
+  });
 
   final String path;
+  final String displayName;
   final Object error;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.error_outline),
-      title: Text(p.basename(path)),
+      title: Text(displayName),
       subtitle: Text('$error', maxLines: 2, overflow: TextOverflow.ellipsis),
     );
   }

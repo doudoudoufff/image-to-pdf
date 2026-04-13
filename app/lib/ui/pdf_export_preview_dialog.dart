@@ -1,9 +1,9 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../constants.dart';
+import '../image_queue_item.dart';
 import '../services/pdf_export_service.dart';
 import 'pdf_page_preview_list.dart';
 
@@ -11,11 +11,11 @@ import 'pdf_page_preview_list.dart';
 class PdfExportPreviewDialog extends StatefulWidget {
   const PdfExportPreviewDialog({
     super.key,
-    required this.paths,
+    required this.items,
     required this.pdfService,
   });
 
-  final List<String> paths;
+  final List<ImageQueueItem> items;
   final PdfExportService pdfService;
 
   @override
@@ -71,12 +71,12 @@ class _PdfExportPreviewDialogState extends State<PdfExportPreviewDialog> {
     setState(() {
       _saveInProgress = true;
       _exportPagesDone = 0;
-      _exportPagesTotal = widget.paths.length;
+      _exportPagesTotal = widget.items.length;
       _exportEncodingPdf = false;
     });
     try {
       final bytes = await widget.pdfService.buildPdf(
-        List<String>.from(widget.paths),
+        List<ImageQueueItem>.from(widget.items),
         captionFontSizePt: _captionFontPt,
         captionAlignX: _captionAlignX,
         captionAlignY: _captionAlignY,
@@ -99,22 +99,27 @@ class _PdfExportPreviewDialogState extends State<PdfExportPreviewDialog> {
       if (!mounted) {
         return;
       }
+      if (bytes.isEmpty) {
+        throw StateError('生成的 PDF 为空');
+      }
+      // 传入 bytes 由插件写入面板返回的路径；勿自行改路径加后缀，否则 macOS 沙盒会拒写。
       final savePath = await FilePicker.saveFile(
         dialogTitle: '保存 PDF',
         fileName: 'output.pdf',
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
+        bytes: bytes,
       );
-      if (savePath == null) {
+      if (savePath == null || !mounted) {
         return;
       }
-      var out = savePath;
-      if (!out.toLowerCase().endsWith('.pdf')) {
-        out = '$out.pdf';
-      }
-      await File(out).writeAsBytes(bytes);
+      Navigator.of(context).pop<String>(savePath);
+    } on PlatformException catch (e) {
       if (mounted) {
-        Navigator.of(context).pop<String>(out);
+        final detail = e.message ?? e.code;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败（系统对话框）：$detail')),
+        );
       }
     } on Object catch (e) {
       if (mounted) {
@@ -284,7 +289,7 @@ class _PdfExportPreviewDialogState extends State<PdfExportPreviewDialog> {
                                     child: PdfPagePreviewList(
                                       scrollController:
                                           _previewScrollController,
-                                      paths: widget.paths,
+                                      items: widget.items,
                                       captionFontPt: _captionFontPt,
                                       captionAlignX: _captionAlignX,
                                       captionAlignY: _captionAlignY,
@@ -347,7 +352,7 @@ class _PdfExportPreviewDialogState extends State<PdfExportPreviewDialog> {
                   ),
                   const SizedBox(width: 12),
                   FilledButton.icon(
-                    onPressed: (_saveInProgress || widget.paths.isEmpty)
+                    onPressed: (_saveInProgress || widget.items.isEmpty)
                         ? null
                         : _saveToFile,
                     icon: _saveInProgress

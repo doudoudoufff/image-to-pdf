@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../image_queue_item.dart';
 import '../pdf_layout_constants.dart';
 import 'image_pipeline.dart';
 
@@ -20,7 +21,7 @@ class PdfExportService {
   static const int prepareConcurrency = 4;
 
   Future<Uint8List> buildPdf(
-    List<String> orderedPaths, {
+    List<ImageQueueItem> items, {
 
     /// PDF 底部文件名的目标字号（pt），过小会自动缩小以适配行宽。
     double captionFontSizePt = 10,
@@ -38,7 +39,7 @@ class PdfExportService {
     void Function()? onPdfEncodingStarted,
   }) async {
     final fontData = await rootBundle.load(
-      'assets/fonts/NotoSansSC-Regular.otf',
+      'assets/fonts/NotoSansSC-Regular.ttf',
     );
     final font = pw.Font.ttf(fontData);
 
@@ -48,7 +49,7 @@ class PdfExportService {
     final ay = captionAlignY.clamp(-1.0, 1.0);
 
     final doc = pw.Document();
-    final total = orderedPaths.length;
+    final total = items.length;
     if (total == 0) {
       throw StateError('请先添加至少一张图片。');
     }
@@ -70,7 +71,10 @@ class PdfExportService {
       final batch = await Future.wait(
         <Future<PreparedPage?>>[
           for (var k = index; k < batchEnd; k++)
-            _pipeline.prepareFile(orderedPaths[k]),
+            _pipeline.prepareFile(
+              items[k].path,
+              displayName: items[k].displayName,
+            ),
         ],
       );
 
@@ -169,13 +173,19 @@ class PdfExportService {
     return doc.save(enableEventLoopBalancing: true);
   }
 
-  /// 底部文件名：显式颜色 + Helvetica 回退，避免部分 OTF/子集下拉丁字符不绘制呈「空白」。
+  /// 底部文件名：嵌入的 Noto Sans SC。
+  ///
+  /// 不能只用 [TextStyle.copyWith] 的 `font:`：实现里仍会保留 `fontNormal` 等为
+  /// defaultStyle 的 Helvetica，且 **显式 `fontNormal` 会盖过 `font` 简写**，
+  /// 结果中文在 PDF 里变成方框（预览用 Flutter 字体则正常）。
   pw.TextStyle _captionStyle(pw.Font noto, double fontSize) {
     return pw.TextStyle.defaultStyle().copyWith(
-      font: noto,
+      fontNormal: noto,
+      fontBold: noto,
+      fontItalic: noto,
+      fontBoldItalic: noto,
       fontSize: fontSize,
       color: PdfColors.black,
-      fontFallback: [pw.Font.helvetica()],
     );
   }
 

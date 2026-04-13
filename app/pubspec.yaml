@@ -64,12 +64,12 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/fonts/NotoSansSC-Regular.otf
+    - assets/fonts/NotoSansSC-Regular.ttf
 
   fonts:
     - family: NotoSansSC
       fonts:
-        - asset: assets/fonts/NotoSansSC-Regular.otf
+        - asset: assets/fonts/NotoSansSC-Regular.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

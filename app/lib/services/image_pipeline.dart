@@ -53,10 +53,16 @@ class ImagePipeline {
     );
   }
 
-  Future<PreparedPage?> prepareFile(String filePath) async {
+  Future<PreparedPage?> prepareFile(
+    String filePath, {
+    String? displayName,
+  }) async {
     try {
       final bytes = await File(filePath).readAsBytes();
-      return _prepareDecoded(bytes, _basename(filePath));
+      final caption = (displayName != null && displayName.trim().isNotEmpty)
+          ? displayName.trim()
+          : _basename(filePath);
+      return _prepareDecoded(bytes, caption);
     } on Object {
       return null;
     }
